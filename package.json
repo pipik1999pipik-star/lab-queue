@@ -1,0 +1,12 @@
+{
+  "name": "lab-queue",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram Mini App: очередь на сдачу лабораторных",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

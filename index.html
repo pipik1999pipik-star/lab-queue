@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1f1e1d">
+<title>Очередь на лабы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+/* Раскладка: узкая колонка как в мессенджере. Сверху вкладки лабораторных, ниже ровный список мест, внизу закреплённая кнопка записи. */
+:root {
+  --bg: #1f1e1d;
+  --surface: #292826;
+  --surface-2: #33312d;
+  --line: #3e3b36;
+  --fg: #f3efe6;
+  --muted: #a39d91;
+  --dim: #7a746a;
+  --accent: #d97757;
+  --accent-soft: rgba(217, 119, 87, 0.14);
+  --accent-ink: #1c1a18;
+  --ok: #93b878;
+  --danger: #e8765e;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font: 15px/1.45 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-top: 6px; }
+.eyebrow { margin: 0 0 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+h1 { margin: 0; font: 500 30px/1.1 var(--serif); letter-spacing: -.01em; text-wrap: balance; }
+.me { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); font-weight: 600; font-size: 13px; color: var(--muted); }
+.demo { font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; }
+
+.mine { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mine-label { font-size: 12px; color: var(--dim); margin-right: 2px; }
+.chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 500; border: 1px solid transparent; }
+.chip b { font: 500 13px var(--mono); }
+
+.tabs { display: flex; gap: 8px; overflow-x: auto; margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding: 2px max(16px, env(safe-area-inset-left, 0px)) 4px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; scroll-snap-align: center; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 88px; padding: 9px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); text-align: left; transition: background .15s, border-color .15s; }
+.tab .t-name { font-size: 14px; font-weight: 500; white-space: nowrap; }
+.tab .t-meta { font: 400 12px var(--mono); color: var(--dim); }
+.tab[aria-selected="true"] { background: var(--fg); border-color: var(--fg); color: var(--accent-ink); }
+.tab[aria-selected="true"] .t-meta { color: #5d584f; }
+.tab.add { min-width: 0; justify-content: center; color: var(--muted); border-style: dashed; background: transparent; font-size: 20px; line-height: 1; padding-inline: 18px; }
+
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.lab-head { display: flex; flex-direction: column; gap: 10px; }
+.lab-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+h2 { margin: 0; font: 500 24px/1.15 var(--serif); }
+.gear { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--muted); border: 1px solid var(--line); background: var(--surface); }
+.meter { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .3s ease; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 500; font-family: var(--mono); }
+.now { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.now .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px rgba(147, 184, 120, .16); }
+.now span { color: var(--muted); }
+.now strong { font-weight: 500; }
+
+.slots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.slot { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 50px; padding: 8px 14px 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid transparent; text-align: left; transition: background .12s, border-color .12s, transform .12s; }
+.slot:active { transform: scale(.992); }
+.slot .n { font: 500 14px var(--mono); color: var(--dim); }
+.slot .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot .tag { font-size: 11.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; }
+.slot.free { background: transparent; border: 1px dashed var(--line); }
+.slot.free .who { color: var(--dim); }
+.slot.free:hover, .slot.free:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+.slot.free:hover .who { color: var(--accent); }
+.slot.mine { background: var(--accent-soft); border-color: rgba(217, 119, 87, .55); }
+.slot.mine .n { color: var(--accent); }
+.slot.mine .tag { background: var(--accent); color: var(--accent-ink); }
+.slot.now .tag { background: rgba(147, 184, 120, .18); color: var(--ok); }
+.slot.done .who { color: var(--dim); text-decoration: line-through; text-decoration-color: var(--line); }
+.slot.done .tag { color: var(--ok); padding-inline: 2px; font-size: 16px; letter-spacing: 0; }
+
+.empty { text-align: center; padding: 48px 12px; color: var(--muted); display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.empty h2 { color: var(--fg); }
+
+.dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 28px max(16px, env(safe-area-inset-left, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--bg) 62%, rgba(31, 30, 29, 0)); pointer-events: none; z-index: 5; }
+.dock-in { max-width: 520px; margin: 0 auto; pointer-events: auto; }
+
+.btn { width: 100%; min-height: 50px; padding: 12px 18px; border-radius: 14px; font-weight: 600; font-size: 15.5px; background: var(--surface-2); border: 1px solid var(--line); transition: background .15s, opacity .15s; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: #e48a6c; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.ghost { background: transparent; }
+
+.scrim { position: fixed; inset: 0; background: rgba(10, 9, 8, .6); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; transform: translateY(105%); transition: transform .25s cubic-bezier(.2, .8, .2, 1); display: flex; justify-content: center; pointer-events: none; }
+.sheet-in { width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 22px 22px 0 0; padding: 10px max(18px, env(safe-area-inset-left, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.sheet-in::before { content: ""; align-self: center; width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin-bottom: 4px; flex: none; }
+body.sheet-open .scrim { opacity: 1; pointer-events: auto; }
+body.sheet-open .sheet { transform: none; pointer-events: auto; }
+.sheet h3 { margin: 0; font: 500 22px/1.2 var(--serif); }
+.sheet p { margin: 0; color: var(--muted); font-size: 14px; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+
+.pick { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid transparent; cursor: pointer; }
+.pick input { position: absolute; opacity: 0; pointer-events: none; }
+.pick .box { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--dim); display: grid; place-items: center; transition: background .12s, border-color .12s; }
+.pick input:checked + .box { background: var(--accent); border-color: var(--accent); }
+.pick input:checked + .box::after { content: ""; width: 10px; height: 5px; border: solid var(--accent-ink); border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); }
+.pick input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick.off { opacity: .55; cursor: default; }
+.pick .pmeta { font: 400 12.5px var(--mono); color: var(--muted); }
+
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.field input { width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); font: inherit; font-size: 16px; }
+.field input:focus { border-color: var(--accent); outline: none; }
+
+.toast { position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 12px); max-width: min(92vw, 460px); padding: 11px 16px; border-radius: 12px; background: var(--fg); color: var(--accent-ink); font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 30; text-align: center; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="sub">Сдача лабораторных</p>
+      <h1>Очередь на лабы</h1>
+    </div>
+    <div class="me" id="me" aria-hidden="true"></div>
+  </header>
+  <div class="demo" id="demo" hidden>Демо-режим: сервер не подключён, данные хранятся только на этом устройстве.</div>
+  <section class="mine" id="mine" hidden></section>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Лабораторные"></nav>
+  <main class="panel" id="panel"></main>
+</div>
+
+<div class="dock"><div class="dock-in"><button class="btn primary" id="join" type="button">Записаться в очередь</button></div></div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-hidden="true"><div class="sheet-in" id="sheetBody"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var plural = function (n, a, b, c) {
+    var m = n % 100, d = n % 10;
+    return m > 10 && m < 20 ? c : d === 1 ? a : d > 1 && d < 5 ? b : c;
+  };
+  var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+
+  // ---------- Telegram ----------
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var inTelegram = !!(tg && tg.initData);
+  if (tg) {
+    try { tg.ready(); tg.expand(); } catch (e) {}
+    try { tg.setHeaderColor('#1f1e1d'); tg.setBackgroundColor('#1f1e1d'); tg.setBottomBarColor('#1f1e1d'); } catch (e) {}
+  }
+  function haptic(kind) {
+    try {
+      if (kind === 'ok') tg.HapticFeedback.notificationOccurred('success');
+      else if (kind === 'err') tg.HapticFeedback.notificationOccurred('error');
+      else tg.HapticFeedback.impactOccurred('light');
+    } catch (e) {}
+  }
+
+  // ---------- хранилище: сервер или локальное демо ----------
+  var Remote = {
+    kind: 'remote',
+    req: function (path, body) {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+      return fetch('/api/' + path, {
+        method: body ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json', 'X-Init-Data': (tg && tg.initData) || '' },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal
+      }).then(function (r) {
+        clearTimeout(timer);
+        return r.json().catch(function () { return null; }).then(function (j) {
+          if (!j) { var e0 = new Error('Нет связи с сервером'); e0.bad = true; throw e0; }
+          if (!r.ok) { var e = new Error(j.error || 'Ошибка'); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+    },
+    state: function () { return this.req('state'); },
+    act: function (name, body) { return this.req(name, body || {}); }
+  };
+
+  var NAMES = ['Алексей К.', 'Мария С.', 'Дмитрий Л.', 'Анна В.', 'Никита Р.', 'Ольга Т.', 'Егор М.', 'Полина Д.', 'Илья Ф.', 'Софья Н.', 'Артём Б.', 'Влада Г.'];
+  var Local = {
+    kind: 'local',
+    key: 'labq.demo.v1',
+    me: { id: 1000, name: 'Вы' },
+    db: null,
+    load: function () {
+      try { this.db = JSON.parse(localStorage.getItem(this.key)); } catch (e) {}
+      if (!this.db || !this.db.labs) this.db = this.seed();
+    },
+    seed: function () {
+      var fills = [22, 14, 7, 0];
+      var labs = fills.map(function (k, i) {
+        var slots = {};
+        for (var n = 1; n <= k; n++) slots[n] = { uid: n, name: NAMES[(n + i * 3) % NAMES.length], done: i === 0 && n <= 5 };
+        return { id: 'l' + (i + 1), name: 'Лабораторная ' + (i + 1), capacity: 30, slots: slots };
+      });
+      return { labs: labs };
+    },
+    save: function () { try { localStorage.setItem(this.key, JSON.stringify(this.db)); } catch (e) {} },
+    mySlot: function (lab) {
+      for (var n in lab.slots) if (lab.slots[n].uid === this.me.id) return Number(n);
+      return 0;
+    },
+    firstFree: function (lab) {
+      for (var i = 1; i <= lab.capacity; i++) if (!lab.slots[i]) return i;
+      return 0;
+    },
+    lab: function (id) {
+      for (var i = 0; i < this.db.labs.length; i++) if (this.db.labs[i].id === id) return this.db.labs[i];
+      throw new Error('Такой лабораторной нет');
+    },
+    view: function () {
+      var self = this;
+      return {
+        me: this.me,
+        isAdmin: true,
+        labs: this.db.labs.map(function (l) {
+          var slots = [];
+          for (var i = 1; i <= l.capacity; i++) {
+            var s = l.slots[i];
+            slots.push(s ? { name: s.name, done: !!s.done, mine: s.uid === self.me.id } : null);
+          }
+          return { id: l.id, name: l.name, capacity: l.capacity, slots: slots };
+        })
+      };
+    },
+    state: function () { return Promise.resolve({ state: this.view() }); },
+    act: function (name, b) {
+      var self = this, out = {};
+      try {
+        b = b || {};
+        if (name === 'join') {
+          out.results = (b.labIds || []).map(function (id) {
+            var lab = self.lab(id), has = self.mySlot(lab);
+            var want = b.slot >= 1 && b.slot <= lab.capacity && !lab.slots[b.slot] ? b.slot : 0;
+            if (has) {
+              if (b.slot && want) {
+                lab.slots[want] = lab.slots[has]; delete lab.slots[has];
+                return { labId: id, status: 'moved', slot: want };
+              }
+              return { labId: id, status: b.slot ? 'taken' : 'already', slot: has };
+            }
+            if (b.slot && !want) return { labId: id, status: 'taken', slot: 0 };
+            var n = want || self.firstFree(lab);
+            if (!n) return { labId: id, status: 'full', slot: 0 };
+            lab.slots[n] = { uid: self.me.id, name: self.me.name, done: false };
+            return { labId: id, status: 'joined', slot: n };
+          });
+        } else if (name === 'leave') {
+          var l1 = this.lab(b.labId), m = this.mySlot(l1);
+          if (m) delete l1.slots[m];
+        } else if (name === 'done') {
+          var l2 = this.lab(b.labId);
+          if (l2.slots[b.slot]) l2.slots[b.slot].done = !!b.done;
+        } else if (name === 'remove') {
+          delete this.lab(b.labId).slots[b.slot];
+        } else if (name === 'lab') {
+          var nm = String(b.name || '').trim().slice(0, 30), cap = Math.round(Number(b.capacity));
+          if (!nm) throw new Error('Введите название');
+          if (!(cap >= 1 && cap <= 100)) throw new Error('Мест должно быть от 1 до 100');
+          if (b.id) {
+            var lab = this.lab(b.id), max = 0;
+            for (var k in lab.slots) max = Math.max(max, Number(k));
+            if (cap < max) throw new Error('Занято место №' + max + ', меньше сделать нельзя');
+            lab.name = nm; lab.capacity = cap;
+          } else {
+            this.db.labs.push({ id: 'l' + Date.now().toString(36), name: nm, capacity: cap, slots: {} });
+          }
+        } else if (name === 'labdelete') {
+          this.lab(b.id);
+          this.db.labs = this.db.labs.filter(function (l) { return l.id !== b.id; });
+        }
+        this.save();
+        out.state = this.view();
+        return Promise.resolve(out);
+      } catch (e) { return Promise.reject(e); }
+    }
+  };
+
+  // ---------- состояние ----------
+  var store = Remote;
+  var S = { labs: [], me: { id: 0, name: '' }, isAdmin: false };
+  var cur = '';
+  var lastJson = '';
+  try { cur = localStorage.getItem('labq.cur') || ''; } catch (e) {}
+
+  function curLab() {
+    for (var i = 0; i < S.labs.length; i++) if (S.labs[i].id === cur) return S.labs[i];
+    return S.labs[0] || null;
+  }
+  function mineIn(lab) {
+    for (var i = 0; i < lab.slots.length; i++) if (lab.slots[i] && lab.slots[i].mine) return i + 1;
+    return 0;
+  }
+  function stats(lab) {
+    var taken = 0, done = 0, now = 0;
+    for (var i = 0; i < lab.slots.length; i++) {
+      var s = lab.slots[i];
+      if (!s) continue;
+      taken++;
+      if (s.done) done++;
+      else if (!now) now = i + 1;
+    }
+    return { taken: taken, done: done, now: now, free: lab.capacity - taken };
+  }
+
+  function apply(state) {
+    var j = JSON.stringify(state);
+    if (j === lastJson) return;
+    lastJson = j;
+    S = state;
+    if (!curLab()) cur = '';
+    else cur = curLab().id;
+    render();
+  }
+
+  // ---------- отрисовка ----------
+  function render() {
+    $('#me').textContent = (S.me.name || '?').trim().slice(0, 1).toUpperCase();
+    $('#sub').textContent = S.me.name ? S.me.name + (S.isAdmin && store.kind === 'remote' ? ' · админ' : '') : 'Сдача лабораторных';
+    $('#demo').hidden = store.kind !== 'local';
+    renderMine();
+    renderTabs();
+    renderPanel();
+    var lab = curLab();
+    $('#join').textContent = S.labs.length ? 'Записаться в очередь' : 'Добавить лабораторную';
+    $('#join').hidden = !S.labs.length && !S.isAdmin;
+    if (!lab && !S.isAdmin) $('#join').hidden = true;
+  }
+
+  function renderMine() {
+    var el = $('#mine'), parts = [];
+    S.labs.forEach(function (l) {
+      var n = mineIn(l);
+      if (n) parts.push('<button class="chip" type="button" data-lab="' + esc(l.id) + '">' + esc(l.name.replace(/^Лабораторная\s*/i, 'Лаба ')) + ' <b>№' + n + '</b></button>');
+    });
+    el.hidden = !parts.length;
+    el.innerHTML = parts.length ? '<span class="mine-label">Вы записаны:</span>' + parts.join('') : '';
+  }
+
+  function renderTabs() {
+    var h = S.labs.map(function (l) {
+      var st = stats(l), sel = l.id === cur;
+      return '<button class="tab" role="tab" type="button" data-lab="' + esc(l.id) + '" aria-selected="' + sel + '">' +
+        '<span class="t-name">' + esc(l.name.replace(/^Лабораторная\s*/i, 'Лаба ')) + '</span>' +
+        '<span class="t-meta">' + st.taken + '/' + l.capacity + '</span></button>';
+    }).join('');
+    if (S.isAdmin) h += '<button class="tab add" type="button" data-act="newlab" aria-label="Добавить лабораторную">+</button>';
+    var box = $('#tabs');
+    box.innerHTML = h;
+    var sel = box.querySelector('[aria-selected="true"]');
+    if (sel && sel.scrollIntoView) { try { sel.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+  }
+
+  function renderPanel() {
+    var lab = curLab(), box = $('#panel');
+    if (!lab) {
+      box.innerHTML = '<div class="empty"><h2>Лабораторных пока нет</h2><p>' + (S.isAdmin ? 'Добавьте первую, и студенты смогут записываться.' : 'Староста ещё не создал очередь.') + '</p></div>';
+      return;
+    }
+    var st = stats(lab), me = mineIn(lab);
+    var pct = Math.round((st.taken / lab.capacity) * 100);
+    var head = '<div class="lab-head"><div class="lab-title"><h2>' + esc(lab.name) + '</h2>' +
+      (S.isAdmin ? '<button class="gear" type="button" data-act="editlab" aria-label="Настроить лабораторную"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>' : '') +
+      '</div><div class="meter" aria-hidden="true"><span style="width:' + pct + '%"></span></div>' +
+      '<div class="meta"><span>Занято <b>' + st.taken + '/' + lab.capacity + '</b></span><span>Свободно <b>' + st.free + '</b></span><span>Сдали <b>' + st.done + '</b></span></div></div>';
+    var now = '';
+    if (st.now) now = '<div class="now"><i class="dot"></i><div><span>Сейчас сдаёт</span> <strong>' + esc(lab.slots[st.now - 1].name) + '</strong> <span>· №' + st.now + '</span></div></div>';
+    else if (st.taken) now = '<div class="now"><i class="dot"></i><div><span>Все записанные уже сдали</span></div></div>';
+    var rows = lab.slots.map(function (s, i) {
+      var n = i + 1, cls = 'slot', who, tag = '';
+      if (!s) { cls += ' free'; who = 'Свободно'; }
+      else {
+        who = esc(s.name);
+        if (s.mine) { cls += ' mine'; tag = '<span class="tag">вы</span>'; }
+        if (s.done) { cls += ' done'; tag = '<span class="tag" aria-label="сдал">✓</span>'; }
+        else if (n === st.now) { cls += ' now'; if (!s.mine) tag = '<span class="tag">сдаёт</span>'; }
+      }
+      return '<li><button class="' + cls + '" type="button" data-slot="' + n + '"><span class="n">' + pad(n) + '</span><span class="who">' + who + '</span>' + (tag || '<span></span>') + '</button></li>';
+    }).join('');
+    box.innerHTML = head + now + '<ol class="slots">' + rows + '</ol>';
+  }
+
+  // ---------- уведомления и окна ----------
+  var toastTimer;
+  function toast(msg, bad) {
+    var t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    haptic(bad ? 'err' : 'ok');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2800);
+  }
+  function openSheet(html) {
+    $('#sheetBody').innerHTML = html;
+    $('#sheet').setAttribute('aria-hidden', 'false');
+    document.body.classList.add('sheet-open');
+  }
+  function closeSheet() {
+    document.body.classList.remove('sheet-open');
+    $('#sheet').setAttribute('aria-hidden', 'true');
+  }
+  function sheetOpen() { return document.body.classList.contains('sheet-open'); }
+
+  function act(name, body) {
+    return store.act(name, body).then(function (j) {
+      apply(j.state);
+      return j;
+    }).catch(function (e) {
+      if (e && e.status === 401) { showBlocked(); return null; }
+      toast((e && e.message) || 'Не получилось', true);
+      return null;
+    });
+  }
+  function labName(id) {
+    for (var i = 0; i < S.labs.length; i++) if (S.labs[i].id === id) return S.labs[i].name.replace(/^Лабораторная\s*/i, 'Лаба ');
+    return '';
+  }
+
+  // ---------- записаться на несколько ----------
+  function openJoin() {
+    var sel = {}, lab = curLab();
+    if (lab && !mineIn(lab) && stats(lab).free) sel[lab.id] = true;
+    var rows = S.labs.map(function (l) {
+      var m = mineIn(l), f = stats(l).free, off = m || !f;
+      return '<label class="pick' + (off ? ' off' : '') + '"><input type="checkbox" data-id="' + esc(l.id) + '"' + (sel[l.id] ? ' checked' : '') + (off ? ' disabled' : '') + '><span class="box"></span><span>' + esc(l.name) + '</span><span class="pmeta">' +
+        (m ? 'вы №' + m : f ? f + ' ' + plural(f, 'место', 'места', 'мест') : 'мест нет') + '</span></label>';
+    }).join('');
+    openSheet('<h3>На какие лабы записать?</h3><p>Займёте первое свободное место в каждой. Конкретное место можно выбрать в списке.</p><div class="stack" id="picks">' + rows + '</div><button class="btn primary" id="doJoin" type="button"></button>');
+    function refresh() {
+      var n = Object.keys(sel).filter(function (k) { return sel[k]; }).length;
+      var b = $('#doJoin');
+      b.disabled = !n;
+      b.textContent = n ? 'Записаться на ' + n + ' ' + plural(n, 'лабу', 'лабы', 'лаб') : 'Выберите лабы';
+    }
+    refresh();
+    $('#picks').addEventListener('change', function (e) {
+      var id = e.target.getAttribute('data-id');
+      if (id) { sel[id] = e.target.checked; refresh(); haptic(); }
+    });
+    $('#doJoin').addEventListener('click', function () {
+      var ids = Object.keys(sel).filter(function (k) { return sel[k]; });
+      if (!ids.length) return;
+      closeSheet();
+      act('join', { labIds: ids }).then(function (j) {
+        if (!j) return;
+        var ok = [], bad = [];
+        j.results.forEach(function (r) {
+          if (r.status === 'joined' || r.status === 'moved') ok.push(labName(r.labId) + ' №' + r.slot);
+          else if (r.status === 'full') bad.push(labName(r.labId));
+        });
+        if (ok.length) toast('Записал: ' + ok.join(', ') + (bad.length ? '. Мест нет: ' + bad.join(', ') : ''));
+        else if (bad.length) toast('Мест нет: ' + bad.join(', '), true);
+        else toast('Вы уже в этих очередях');
+      });
+    });
+  }
+
+  // ---------- действия по строкам ----------
+  function onSlot(n) {
+    var lab = curLab();
+    if (!lab) return;
+    var s = lab.slots[n - 1];
+    if (!s) {
+      var had = mineIn(lab);
+      act('join', { labIds: [lab.id], slot: n }).then(function (j) {
+        if (!j) return;
+        var r = j.results[0];
+        if (r.status === 'joined') toast('Вы в очереди: ' + labName(lab.id) + ', место №' + r.slot);
+        else if (r.status === 'moved') toast('Перешли на место №' + r.slot);
+        else toast('Это место уже заняли', true);
+      });
+      return;
+    }
+    var st = stats(lab);
+    if (s.mine || S.isAdmin) {
+      var ahead = 0;
+      for (var i = 0; i < n - 1; i++) if (lab.slots[i] && !lab.slots[i].done) ahead++;
+      var intro = s.mine
+        ? '<p>' + (s.done ? 'Вы уже сдали.' : ahead ? 'Перед вами ' + ahead + ' ' + plural(ahead, 'человек', 'человека', 'человек') + '.' : 'Вы следующий на сдачу.') + '</p>'
+        : '<p>' + esc(lab.name) + ', место №' + n + '</p>';
+      var btns = '';
+      if (S.isAdmin) btns += '<button class="btn" data-act="toggledone" data-slot="' + n + '" data-done="' + (s.done ? 0 : 1) + '" type="button">' + (s.done ? 'Вернуть в очередь' : 'Отметить: сдал(а)') + '</button>';
+      if (s.mine) btns += '<button class="btn danger" data-act="leave" type="button">Выйти из очереди</button>';
+      else btns += '<button class="btn danger" data-act="remove" data-slot="' + n + '" type="button">Убрать из очереди</button>';
+      btns += '<button class="btn ghost" data-act="close" type="button">Закрыть</button>';
+      openSheet('<h3>' + esc(s.name) + ' · №' + n + '</h3>' + intro + '<div class="stack">' + btns + '</div>');
+    }
+  }
+
+  function openLabEditor(isNew) {
+    var lab = isNew ? null : curLab();
+    if (!isNew && !lab) return;
+    openSheet('<h3>' + (isNew ? 'Новая лабораторная' : 'Настройки лабораторной') + '</h3>' +
+      '<label class="field">Название<input id="fName" maxlength="30" value="' + (lab ? esc(lab.name) : 'Лабораторная ' + (S.labs.length + 1)) + '"></label>' +
+      '<label class="field">Сколько мест в очереди<input id="fCap" type="number" inputmode="numeric" min="1" max="100" value="' + (lab ? lab.capacity : 30) + '"></label>' +
+      '<div class="stack"><button class="btn primary" id="fSave" type="button">Сохранить</button>' +
+      (lab ? '<button class="btn danger" id="fDel" type="button">Удалить лабораторную</button>' : '') +
+      '<button class="btn ghost" data-act="close" type="button">Отмена</button></div>');
+    $('#fSave').addEventListener('click', function () {
+      var body = { name: $('#fName').value, capacity: $('#fCap').value };
+      if (lab) body.id = lab.id;
+      act('lab', body).then(function (j) {
+        if (!j) return;
+        closeSheet();
+        if (!lab) {
+          var l = S.labs[S.labs.length - 1];
+          if (l) { cur = l.id; try { localStorage.setItem('labq.cur', cur); } catch (e) {} render(); }
+        }
+        toast('Сохранено');
+      });
+    });
+    if (lab) {
+      var armed = false;
+      $('#fDel').addEventListener('click', function () {
+        if (!armed) { armed = true; this.textContent = 'Точно удалить? Очередь пропадёт'; return; }
+        act('labdelete', { id: lab.id }).then(function (j) { if (j) { closeSheet(); toast('Удалено'); } });
+      });
+    }
+  }
+
+  function showBlocked() {
+    document.body.innerHTML = '<div style="min-height:80vh;display:grid;place-items:center;text-align:center;padding:24px;font:16px/1.5 system-ui;color:#f3efe6"><div><h1 style="font:500 28px Georgia,serif;margin:0 0 10px">Откройте через Telegram</h1><p style="color:#a39d91;margin:0">Очередь доступна только внутри бота: так мы знаем, кто записывается.</p></div></div>';
+  }
+
+  // ---------- события ----------
+  $('#tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.getAttribute('data-act') === 'newlab') return openLabEditor(true);
+    var id = b.getAttribute('data-lab');
+    if (id) { cur = id; try { localStorage.setItem('labq.cur', cur); } catch (x) {} haptic(); render(); }
+  });
+  $('#mine').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-lab]');
+    if (b) { cur = b.getAttribute('data-lab'); try { localStorage.setItem('labq.cur', cur); } catch (x) {} haptic(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  });
+  $('#panel').addEventListener('click', function (e) {
+    var g = e.target.closest('[data-act="editlab"]');
+    if (g) return openLabEditor(false);
+    var b = e.target.closest('[data-slot]');
+    if (b) { haptic(); onSlot(Number(b.getAttribute('data-slot'))); }
+  });
+  $('#join').addEventListener('click', function () {
+    haptic();
+    if (!S.labs.length) openLabEditor(true); else openJoin();
+  });
+  $('#scrim').addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+  $('#sheetBody').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var a = b.getAttribute('data-act'), lab = curLab();
+    if (a === 'close') return closeSheet();
+    if (!lab) return;
+    if (a === 'leave') { closeSheet(); act('leave', { labId: lab.id }).then(function (j) { if (j) toast('Вы вышли из очереди'); }); }
+    if (a === 'remove') { closeSheet(); act('remove', { labId: lab.id, slot: Number(b.getAttribute('data-slot')) }).then(function (j) { if (j) toast('Убрали из очереди'); }); }
+    if (a === 'toggledone') {
+      var done = b.getAttribute('data-done') === '1';
+      closeSheet();
+      act('done', { labId: lab.id, slot: Number(b.getAttribute('data-slot')), done: done }).then(function (j) { if (j) toast(done ? 'Отмечено: сдал(а)' : 'Вернули в очередь'); });
+    }
+  });
+
+  // ---------- запуск ----------
+  function poll() {
+    if (store.kind !== 'remote' || document.hidden || sheetOpen()) return;
+    store.state().then(function (j) { apply(j.state); }).catch(function (e) { if (e && e.status === 401) showBlocked(); });
+  }
+  setInterval(poll, 5000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+
+  Remote.state().then(function (j) {
+    apply(j.state);
+  }).catch(function (e) {
+    if (e && e.status === 401) return showBlocked();
+    store = Local;
+    Local.load();
+    lastJson = '';
+    apply(Local.view());
+  });
+})();
+</script>
+</body>
+</html>
